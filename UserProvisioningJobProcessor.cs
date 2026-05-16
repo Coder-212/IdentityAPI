@@ -1,4 +1,4 @@
-public interface IUserProvisioningJobProcessor
+public interface IUserProvisioningSubmissionProcessor
 {
     Task ProcessAsync(
         ProvisioningType type,
@@ -23,7 +23,7 @@ public interface IUserProvisioningJobProcessor
 /// <returns>
 /// A task representing the asynchronous provisioning job processing.
 /// </returns>
-public sealed class UserProvisioningJobProcessor : IUserProvisioningJobProcessor
+public sealed class UserProvisioningSubmissionProcessor : IUserProvisioningSubmissionProcessor
 {
     private readonly IEreIdentityMongoContext _contextMongo;
     private readonly KeyCloakSettings _keycloakSettings;
@@ -147,9 +147,9 @@ public sealed class UserProvisioningJobProcessor : IUserProvisioningJobProcessor
 
 public sealed class UserProvisioningJob : IJob
 {
-    private readonly IUserProvisioningJobProcessor _processor;
+    private readonly IUserProvisioningSubmissionProcessor _processor;
 
-    public UserProvisioningJob(IUserProvisioningJobProcessor processor)
+    public UserProvisioningJob(IUserProvisioningSubmissionProcessor processor)
     {
         _processor = processor;
     }
@@ -164,9 +164,9 @@ public sealed class UserProvisioningJob : IJob
 
 public sealed class UpdateUserJob : IJob
 {
-    private readonly IUserProvisioningJobProcessor _processor;
+    private readonly IUserProvisioningSubmissionProcessor _processor;
 
-    public UpdateUserJob(IUserProvisioningJobProcessor processor)
+    public UpdateUserJob(IUserProvisioningSubmissionProcessor processor)
     {
         _processor = processor;
     }
@@ -181,9 +181,9 @@ public sealed class UpdateUserJob : IJob
 
 public sealed class DeleteUserJob : IJob
 {
-    private readonly IUserProvisioningJobProcessor _processor;
+    private readonly IUserProvisioningSubmissionProcessor _processor;
 
-    public DeleteUserJob(IUserProvisioningJobProcessor processor)
+    public DeleteUserJob(IUserProvisioningSubmissionProcessor processor)
     {
         _processor = processor;
     }
@@ -196,4 +196,4 @@ public sealed class DeleteUserJob : IJob
     }
 }
 
-services.AddScoped<IUserProvisioningJobProcessor, UserProvisioningJobProcessor>();
+services.AddScoped<IUserProvisioningSubmissionProcessor, UserProvisioningSubmissionProcessor>();
