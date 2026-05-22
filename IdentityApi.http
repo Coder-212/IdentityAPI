@@ -1,0 +1,97 @@
+@apiBaseUrl = https://localhost:5001
+@apiRoute = API/users
+
+@idpBaseUrl = https://localhost:7001
+@clientId = REPLACE_WITH_CLIENT_ID
+@clientSecret = REPLACE_WITH_CLIENT_SECRET
+@scope = REPLACE_WITH_SCOPE
+
+@email = user.test@example.com
+
+### Get access token from Duende IdentityServer
+# @name auth
+POST {{idpBaseUrl}}/connect/token
+Content-Type: application/x-www-form-urlencoded
+Accept: application/json
+
+grant_type=client_credentials&client_id={{clientId}}&client_secret={{clientSecret}}&scope={{scope}}
+
+
+### Get provisioning status
+GET {{apiBaseUrl}}/{{apiRoute}}/{{email}}/provisioning-status
+Authorization: Bearer {{auth.response.body.access_token}}
+Accept: application/json
+
+
+### Create user provisioning request
+POST {{apiBaseUrl}}/{{apiRoute}}
+Authorization: Bearer {{auth.response.body.access_token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "{{email}}",
+  "firstName": "Test",
+  "lastName": "User",
+  "phoneNumber": "+33123456789",
+  "language": "fr"
+}
+
+
+### Bulk create user provisioning requests
+POST {{apiBaseUrl}}/{{apiRoute}}/bulk
+Authorization: Bearer {{auth.response.body.access_token}}
+Content-Type: application/json
+Accept: application/json
+
+[
+  {
+    "email": "user1.test@example.com",
+    "firstName": "Test",
+    "lastName": "User1",
+    "phoneNumber": "+33111111111",
+    "language": "fr"
+  },
+  {
+    "email": "user2.test@example.com",
+    "firstName": "Test",
+    "lastName": "User2",
+    "phoneNumber": "+33222222222",
+    "language": "fr"
+  }
+]
+
+
+### Bulk empty payload - expected 400
+POST {{apiBaseUrl}}/{{apiRoute}}/bulk
+Authorization: Bearer {{auth.response.body.access_token}}
+Content-Type: application/json
+Accept: application/json
+
+[]
+
+
+### Update existing user provisioning request
+PATCH {{apiBaseUrl}}/{{apiRoute}}/{{email}}
+Authorization: Bearer {{auth.response.body.access_token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "firstName": "Updated",
+  "lastName": "User",
+  "phoneNumber": "+33999999999",
+  "language": "fr"
+}
+
+
+### Delete existing user provisioning request
+DELETE {{apiBaseUrl}}/{{apiRoute}}/{{email}}
+Authorization: Bearer {{auth.response.body.access_token}}
+Accept: application/json
+
+
+### Get unknown user provisioning status - expected 404
+GET {{apiBaseUrl}}/{{apiRoute}}/unknown.user@example.com/provisioning-status
+Authorization: Bearer {{auth.response.body.access_token}}
+Accept: application/json
