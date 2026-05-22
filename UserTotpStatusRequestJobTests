@@ -1,0 +1,234 @@
+using EreIdentity.Application.Interfaces;
+using EreIdentity.Infrastructure.Configurations;
+using EreIdentity.Infrastructure.Keycloak;
+using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NSubstitute;
+using Quartz;
+
+namespace EreIdentity.Tests.Infrastructure;
+
+public sealed class UserTotpStatusRequestJobTests
+{
+    private readonly IUserProvisioningRepository _repository;
+    private readonly IEreIdentityMongoContext _contextMongo;
+    private readonly IExcelHelperWrapper _excelHelperWrapper;
+    private readonly ILogger<UserTotpStatusRequestJob> _logger;
+    private readonly UserTotpStatusRequestJob _job;
+
+    public UserTotpStatusRequestJobTests()
+    {
+        _repository = Substitute.For<IUserProvisioningRepository>();
+        _contextMongo = Substitute.For<IEreIdentityMongoContext>();
+        _excelHelperWrapper = Substitute.For<IExcelHelperWrapper>();
+        _logger = Substitute.For<ILogger<UserTotpStatusRequestJob>>();
+
+        var options = Options.Create(new KeyCloakSettings
+        {
+            FilePath = "/tmp/keycloak"
+        });
+
+        _job = new UserTotpStatusRequestJob(
+            _repository,
+            _logger,
+            options,
+            _excelHelperWrapper,
+            _contextMongo);
+    }
+
+    [Fact]
+    public async Task Execute_Should_Do_Nothing_When_No_User_Found()
+    {
+        _repository.GetRecentUsersNotConfirmedAsync()
+            .Returns([]);
+
+        await _job.Execute(CreateContext());
+
+        await _contextMongo
+            .DidNotReceive()
+            .GetApplicationInfosAsync(
+                Arg.Any<IEnumerable<string>>(),
+                Arg.Any<CancellationToken>());
+
+        _excelHelperWrapper
+            .DidNotReceive()
+            .CreateReadQueryExcel(
+                Arg.Any<IEnumerable<string>>(),
+                Arg.Any<string>(),
+                Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task Execute_Should_Create_Query_File_For_Client_When_Configuration_Exists()
+    {
+        var users = new List<IdentityUser>
+        {
+            new()
+            {
+                Email = "user1@test.com",
+                ClientId = "client-a"
+            },
+            new()
+            {
+                Email = "user2@test.com",
+                ClientId = "client-a"
+            }
+        };
+
+        var applicationInfos = new List<ApplicationInfo>
+        {
+            new()
+            {
+                ClientId = "client-a",
+                KeycloakConfiguration = "service-account-a"
+            }
+        };
+
+        _repository.GetRecentUsersNotConfirmedAsync()
+            .Returns(users);
+
+        _contextMongo
+            .GetApplicationInfosAsync(
+                Arg.Is<IEnumerable<string>>(x => x.Contains("client-a")),
+                Arg.Any<CancellationToken>())
+            .Returns(applicationInfos);
+
+        await _job.Execute(CreateContext());
+
+        _excelHelperWrapper
+            .Received(1)
+            .CreateReadQueryExcel(
+                Arg.Is<IEnumerable<string>>(emails =>
+                    emails.Contains("user1@test.com") &&
+                    emails.Contains("user2@test.com")),
+                "/tmp/keycloak",
+                "service-account-a");
+    }
+
+    [Fact]
+    public async Task Execute_Should_Not_Create_File_When_Client_Configuration_Is_Missing()
+    {
+        var users = new List<IdentityUser>
+        {
+            new()
+            {
+                Email = "user@test.com",
+                ClientId = "client-missing"
+            }
+        };
+
+        _repository.GetRecentUsersNotConfirmedAsync()
+            .Returns(users);
+
+        _contextMongo
+            .GetApplicationInfosAsync(
+                Arg.Any<IEnumerable<string>>(),
+                Arg.Any<CancellationToken>())
+            .Returns([]);
+
+        await _job.Execute(CreateContext());
+
+        _excelHelperWrapper
+            .DidNotReceive()
+            .CreateReadQueryExcel(
+                Arg.Any<IEnumerable<string>>(),
+                Arg.Any<string>(),
+                Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task Execute_Should_Ignore_Users_Without_ClientId()
+    {
+        var users = new List<IdentityUser>
+        {
+            new()
+            {
+                Email = "user@test.com",
+                ClientId = null
+            }
+        };
+
+        _repository.GetRecentUsersNotConfirmedAsync()
+            .Returns(users);
+
+        await _job.Execute(CreateContext());
+
+        await _contextMongo
+            .DidNotReceive()
+            .GetApplicationInfosAsync(
+                Arg.Any<IEnumerable<string>>(),
+                Arg.Any<CancellationToken>());
+
+        _excelHelperWrapper
+            .DidNotReceive()
+            .CreateReadQueryExcel(
+                Arg.Any<IEnumerable<string>>(),
+                Arg.Any<string>(),
+                Arg.Any<string>());
+    }
+
+    [Fact]
+    public async Task Execute_Should_Create_One_File_Per_Client()
+    {
+        var users = new List<IdentityUser>
+        {
+            new()
+            {
+                Email = "client-a-user@test.com",
+                ClientId = "client-a"
+            },
+            new()
+            {
+                Email = "client-b-user@test.com",
+                ClientId = "client-b"
+            }
+        };
+
+        var applicationInfos = new List<ApplicationInfo>
+        {
+            new()
+            {
+                ClientId = "client-a",
+                KeycloakConfiguration = "service-account-a"
+            },
+            new()
+            {
+                ClientId = "client-b",
+                KeycloakConfiguration = "service-account-b"
+            }
+        };
+
+        _repository.GetRecentUsersNotConfirmedAsync()
+            .Returns(users);
+
+        _contextMongo
+            .GetApplicationInfosAsync(
+                Arg.Any<IEnumerable<string>>(),
+                Arg.Any<CancellationToken>())
+            .Returns(applicationInfos);
+
+        await _job.Execute(CreateContext());
+
+        _excelHelperWrapper
+            .Received(1)
+            .CreateReadQueryExcel(
+                Arg.Is<IEnumerable<string>>(emails => emails.Contains("client-a-user@test.com")),
+                "/tmp/keycloak",
+                "service-account-a");
+
+        _excelHelperWrapper
+            .Received(1)
+            .CreateReadQueryExcel(
+                Arg.Is<IEnumerable<string>>(emails => emails.Contains("client-b-user@test.com")),
+                "/tmp/keycloak",
+                "service-account-b");
+    }
+
+    private static IJobExecutionContext CreateContext()
+    {
+        var context = Substitute.For<IJobExecutionContext>();
+        context.CancellationToken.Returns(CancellationToken.None);
+        return context;
+    }
+}
