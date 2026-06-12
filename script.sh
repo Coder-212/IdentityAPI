@@ -38,17 +38,27 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/log.sh"
 
-ENV="${ENV:-staging}"
+case "${ASPNETCORE_ENVIRONMENT^^}" in
+    DEV|INT|UAT)
+        KEYCLOAK_ENVIRONMENT="staging"
+        ;;
+    PROD)
+        KEYCLOAK_ENVIRONMENT="production"
+        ;;
+    *)
+        error "[run] Unsupported ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT}"
+        exit 1
+        ;;
+esac
 
-log "[run] Starting watchers. env=$ENV"
-
+log "[run] Starting watchers. env=${KEYCLOAK_ENVIRONMENT}
 LOGS_ROOT="${SCRIPT_DIR}/../log"
 OUTPUT_ROOT="${SCRIPT_DIR}/../output"
 
 log "[run] logsRoot=$LOGS_ROOT"
 log "[run] outputRoot=$OUTPUT_ROOT"
 
-./watcher_demand.sh "/share/demands" "$ENV" &
+./watcher_demand.sh "/share/demands" "$KEYCLOAK_ENVIRONMENT" &
 pid_demand=$!
 
 ./watcher_files.sh "/share/logs" "$LOGS_ROOT" &
