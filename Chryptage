@@ -1,0 +1,61 @@
+using System.Runtime.CompilerServices;
+
+public async IAsyncEnumerable<Stream> DownloadAndDecryptFilesByPrefixAsync(
+    string sourcePrefix,
+    PgpDecryptOptions decryptOptions,
+    [EnumeratorCancellation] CancellationToken cancellationToken = default)
+{
+    ThrowIfDisabled();
+
+    ArgumentException.ThrowIfNullOrWhiteSpace(sourcePrefix);
+    ArgumentNullException.ThrowIfNull(decryptOptions);
+
+    var request = new ListObjectsV2Request
+    {
+        BucketName = _options.BucketName,
+        Prefix = sourcePrefix
+    };
+
+    ListObjectsV2Response response;
+
+    do
+    {
+        response = await _s3Client.ListObjectsV2Async(
+            request,
+            cancellationToken);
+
+        foreach (var s3Object in response.S3Objects)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (!IsEncryptedPgpFile(s3Object.Key))
+            {
+                continue;
+            }
+
+            var stream = await DownloadAndDecryptFileAsync(
+                s3Object.Key,
+                decryptOptions,
+                cancellationToken);
+
+            yield return stream;
+        }
+
+        request.ContinuationToken = response.NextContinuationToken;
+
+    } while (response.IsTruncated == true);
+
+    _logger.LogInformation(
+        "All encrypted files with prefix {SourcePrefix} have been downloaded and decrypted successfully",
+        sourcePrefix);
+
+}
+
+
+public sealed record DecryptedFile(
+    string SourceKey,
+    Stream Content);
+
+
+
+
