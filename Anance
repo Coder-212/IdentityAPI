@@ -1,0 +1,19 @@
+⚠️ Incident CI/CD — Déploiements temporairement interrompus
+
+Suite à une mauvaise manipulation lors d’une démo GitLab Ultimate, les tokens utilisés pour la partie CD ont été invalidés, entraînant une rupture de la chaîne de déploiement.
+
+🔄 Situation
+
+       CI                                  CD
+┌─────────────────┐                ┌─────────────────┐
+│  Build & Tests  │       ❌       │   Déploiement   │
+│       ✅        │ ──────╳──────▶ │       ⏸️        │
+└─────────────────┘                └─────────────────┘
+                         ↑
+                  Tokens invalidés
+
+La CI reste pleinement opérationnelle. La connexion avec la CD est progressivement rétablie via la génération de nouveaux tokens.
+
+✅ L’ensemble des composants / repositories critiques a déjà été traité et est de nouveau opérationnel.
+
+🔧 Le rétablissement se poursuit sur les éléments restants, avec un retour complet à la normale attendu d’ici la fin de journée.
